@@ -9,6 +9,7 @@ IMAGE="${BUILD_DIR}/os.img"
 IMAGE_SIZE_MB="2048"
 DEBIAN_RELEASE="bookworm"
 ARCH="amd64"
+GRUB_INSTALL_CMD=""
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -17,11 +18,27 @@ require_cmd() {
   fi
 }
 
+resolve_grub_install_cmd() {
+  if command -v grub-install >/dev/null 2>&1; then
+    GRUB_INSTALL_CMD="grub-install"
+    return 0
+  fi
+
+  if command -v grub2-install >/dev/null 2>&1; then
+    GRUB_INSTALL_CMD="grub2-install"
+    return 0
+  fi
+
+  echo "Missing required command: grub-install (or grub2-install)" >&2
+  exit 1
+}
+
 ensure_prereqs() {
-  local cmds=(debootstrap parted mkfs.ext4 grub-install rsync)
+  local cmds=(debootstrap parted mkfs.ext4 rsync)
   for cmd in "${cmds[@]}"; do
     require_cmd "$cmd"
   done
+  resolve_grub_install_cmd
 }
 
 build_rootfs() {
@@ -81,7 +98,7 @@ create_image() {
     sudo cp "${ROOT_DIR}/configs/grub.cfg" "${MOUNT_DIR}/boot/grub/grub.cfg"
   fi
 
-  sudo grub-install --target=i386-pc --boot-directory="${MOUNT_DIR}/boot" "${loopdev}"
+  sudo "${GRUB_INSTALL_CMD}" --target=i386-pc --boot-directory="${MOUNT_DIR}/boot" "${loopdev}"
 
   sudo umount "${MOUNT_DIR}"
   sudo losetup -d "${loopdev}"
